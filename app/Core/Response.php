@@ -11,17 +11,12 @@ class Response
     protected ?array $testResponse = null;
     protected $validationErrors = null;
 
-    public function json($data, int $statusCode = 200)
+    public function json($data, int $statusCode = 200): self
     {
         $this->statusCode = $statusCode;
         $this->headers['Content-Type'] = 'application/json';
-        $this->content = json_encode($data);
-
-        if ($this->testMode) {
-            return $this->prepareTestResponse();
-        }
-
-        return $this->send();
+        $this->content = is_string($data) ? $data : json_encode($data);
+        return $this;
     }
 
     public function paginate($data, array $pagination, int $statusCode = 200)
@@ -69,21 +64,19 @@ class Response
         echo $this->content;
     }
 
-    protected function prepareTestResponse(): array
+    public function prepareTestResponse(): array
     {
-        if ($this->validationErrors !== null) {
-            return [
-                'status' => 422,
-                'headers' => ['Content-Type' => 'application/json'],
-                'body' => ['errors' => $this->validationErrors]
-            ];
+        $body = $this->content;
+        if ($this->headers['Content-Type'] === 'application/json') {
+            $body = json_decode($this->content, true);
         }
-        $this->testResponse = [
+
+        return [
             'status' => $this->statusCode,
             'headers' => $this->headers,
-            'body' => json_decode($this->content, true),
+            'body' => $body,
+            'errors' => $this->validationErrors
         ];
-        return $this->testResponse;
     }
 
     public function asTest(): self
@@ -100,17 +93,10 @@ class Response
     {
         return $this->testResponse;
     }
-    public function validationErrors(array $errors, int $statusCode = 422)
+    public function validationErrors(array $errors): self
     {
-        $this->statusCode = $statusCode;
-        $this->headers['Content-Type'] = 'application/json';
-        $this->content = json_encode(['errors' => $errors]);
-
-        if ($this->testMode) {
-            $this->prepareTestResponse();
-        }
-
-        return $this;
+        $this->validationErrors = $errors;
+        return $this->json(['errors' => $errors], 422);
     }
     public function setValidationErrors(array $errors): void
     {
@@ -121,4 +107,5 @@ class Response
     {
         return $this->validationErrors;
     }
+
 }

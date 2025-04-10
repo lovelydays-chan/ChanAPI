@@ -60,7 +60,7 @@ class UserApiTest extends TestCase
     public function testIndex()
     {
         // ส่งคำขอ GET ไปยัง API
-        $response = $this->app->handle('GET', '/api/users');
+        $response = $this->app->test('GET', '/api/users');
 
         // ตรวจสอบผลลัพธ์ที่ได้รับจาก response
         $this->assertEquals(200, $response['status']);
@@ -70,7 +70,7 @@ class UserApiTest extends TestCase
 
     public function testShow()
     {
-        $response = $this->app->handle('GET', "/api/users/1");
+        $response = $this->app->test('GET', "/api/users/1");
         $this->assertEquals(200, $response['status']);
         $this->assertIsArray($response['body']['data']);
         $this->assertEquals(1, $response['body']['data']['id']);
@@ -84,7 +84,8 @@ class UserApiTest extends TestCase
             'password' => 'password123',
         ];
 
-        $response = $this->app->handle('POST', '/api/users', $postData);
+        $response = $this->app->test('POST', '/api/users', $postData);
+
         $this->assertEquals(201, $response['status']);
         $this->assertArrayHasKey('data', $response['body']);
         $this->assertEquals('Test User', $response['body']['data']['name']);
@@ -102,7 +103,7 @@ class UserApiTest extends TestCase
             'email' => 'updated@example.com',
         ];
 
-        $response = $this->app->handle('PUT', "/api/users/{$userId}", $putData);
+        $response = $this->app->test('PUT', "/api/users/{$userId}", $putData);
 
         $this->assertEquals(200, $response['status']);
         $this->assertArrayHasKey('msg', $response['body']);
@@ -115,27 +116,30 @@ class UserApiTest extends TestCase
      */
     public function testDelete($userId)
     {
-        $response = $this->app->handle('DELETE', "/api/users/{$userId}");
+        $response = $this->app->test('DELETE', "/api/users/{$userId}");
 
         $this->assertEquals(200, $response['status']);
         $this->assertArrayHasKey('msg', $response['body']);
         $this->assertStringContainsString("User with ID: $userId deleted successfully", $response['body']['msg']);
 
         // ตรวจสอบว่าผู้ใช้ถูกลบจริง
-        $response = $this->app->handle('GET', "/api/users/{$userId}");
+        $response = $this->app->test('GET', "/api/users/{$userId}");
         $this->assertEquals(404, $response['status']);
     }
 
     public function testStoreValidationError()
     {
-        $postData = [
-            'name' => '', // ชื่อว่าง
-            'email' => 'invalid-email', // อีเมลไม่ถูกต้อง
-            'password' => '123', // รหัสผ่านสั้นเกินไป
+        $invalidData = [
+            'name' => '', // ไม่กรอกชื่อ
+            'email' => 'invalid-email',
+            'password' => '123'
         ];
 
-        $response = $this->app->handle('POST', '/api/users', $postData);
-
+        $response = $this->app->test('POST', '/api/users', $invalidData);
         $this->assertEquals(422, $response['status']);
+        $this->assertArrayHasKey('errors', $response);
+        $this->assertArrayHasKey('name', $response['errors']);
     }
+
+
 }

@@ -10,22 +10,24 @@ abstract class BaseRequest
     protected $files = [];
     protected $rules = [];
     protected $messages = [];
+    protected $isTestMode = false;
 
-    public function __construct($data = [],$files=[])
+    public function __construct($data = [], $files = [])
     {
-        // รวมข้อมูลจาก GET, POST, และ JSON
-        $this->data = !empty($data) ? $data : array_merge(
-            $_GET,
-            $_POST,
-            $this->parseJsonInput()
-        );
+        // ใช้ตรวจสอบการทดสอบจากการมีข้อมูลใน $data และ $files เท่านั้น
+        $this->isTestMode = !empty($data) || !empty($files);
+        // \var_dump($this->isTestMode);
 
-        // เก็บข้อมูลไฟล์จาก $_FILES
-        $this->files = !empty($files) ? $files : $_FILES;
+        // ใช้ข้อมูลที่ส่งเข้ามาใน $data หรือ $files
+        $this->data = $this->isTestMode
+            ? $data
+            : array_merge($_GET, $_POST, $this->parseJsonInput());
 
-        // เรียก validate() อัตโนมัติเมื่อสร้าง instance
+        $this->files = $this->isTestMode ? $files : $_FILES;
+
         $this->validate();
     }
+
 
     /**
      * ดึงข้อมูลทั้งหมดจากคำขอ
@@ -62,10 +64,12 @@ abstract class BaseRequest
     /**
      * ตรวจสอบและ validate ข้อมูล
      */
-    protected function validate()
+    protected function validate(): void
     {
         if (!empty($this->rules)) {
-            Validator::validate($this->data, $this->rules, $this->messages);
+            // ตรวจสอบว่า $this->data เป็น array
+            $dataToValidate = is_array($this->data) ? $this->data : [];
+            Validator::validate($dataToValidate, $this->rules, $this->messages);
         }
     }
 
@@ -81,5 +85,10 @@ abstract class BaseRequest
         }
 
         return [];
+    }
+
+    public function isTestMode(): bool
+    {
+        return $this->isTestMode;
     }
 }

@@ -2,9 +2,6 @@
 
 use App\Controllers\UserController;
 
-if (!isset($app)) {
-    die('Error: $app not found.');
-}
 
 $app->addRoute('GET', '/', function () {
     echo 'Welcome to the API';
@@ -17,6 +14,7 @@ $app->addRoute('POST', '/api/users', UserController::class, 'store');
 $app->addRoute('PUT', '/api/users/{id}', UserController::class, 'update');
 $app->addRoute('DELETE', '/api/users/{id}', UserController::class, 'delete');
 
+$app->addRoute('GET', '/api/test/{id}', UserController::class, 'test');
 // Route แบบ callback function
 $app->addRoute('GET', '/api/status', function () {
     return response()->json(['status' => 'API is running']);

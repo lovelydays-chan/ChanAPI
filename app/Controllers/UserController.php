@@ -3,18 +3,26 @@
 namespace App\Controllers;
 
 use App\Models\User;
+use App\Service\UserService;
+use App\Repository\UserRepository;
 use App\Requests\UserStoreRequest;
 use App\Requests\UserUpdateRequest;
 
 class UserController
 {
     protected $model;
+    protected $userService;
+    protected $userRepository;
 
-    public function __construct()
+
+    public function __construct(UserRepository $userRepository, UserService $userService)
     {
         // เชื่อมต่อกับ UserModel
         $this->model = new User();
+        $this->userRepository = $userRepository;
+        $this->userService = $userService;
     }
+
 
     public function index()
     {
@@ -30,7 +38,7 @@ class UserController
             'last_page' => $result['pagination']['last_page'],
         ];
 
-        return response()->paginate($result['data'], $pagination, 200);
+        return response()->paginate($result['data'], $pagination, 200)->send();
     }
 
     public function show($id)
@@ -38,9 +46,9 @@ class UserController
         $user = $this->model->find($id);
 
         if ($user) {
-            return response()->json(['msg' => 'User found', 'status' => true, 'data' => $user], 200);
+            return response()->json(['msg' => 'User found', 'status' => true, 'data' => $user], 200)->send();
         } else {
-            return response()->json(['msg' => 'User not found', 'status' => false], 404);
+            return response()->json(['msg' => 'User not found', 'status' => false], 404)->send();
         }
     }
 
@@ -59,9 +67,9 @@ class UserController
             return response()->json([
                 'msg' => 'User created successfully',
                 'data' => $user, // ส่งข้อมูลผู้ใช้กลับไป
-            ], 201);
+            ], 201)->send();
         } else {
-            return response()->json(['msg' => 'Failed to create user'], 500);
+            return response()->json(['msg' => 'Failed to create user'], 500)->send();
         }
     }
 
@@ -70,18 +78,26 @@ class UserController
         $data = $request->all();
 
         if ($this->model->update($id, $data)) {
-            return response()->json(['msg' => "User with ID: $id updated successfully"]);
+            return response()->json(['msg' => "User with ID: $id updated successfully"],200)->send();
         } else {
-            return response()->json(['msg' => "Failed to update user with ID: $id"], 500);
+            return response()->json(['msg' => "Failed to update user with ID: $id"], 500)->send();
         }
     }
 
     public function delete($id)
     {
         if ($this->model->delete($id)) {
-            return response()->json(['msg' => "User with ID: $id deleted successfully"]);
+            return response()->json(['msg' => "User with ID: $id deleted successfully"],200)->send();
         } else {
-            return response()->json(['msg' => "Failed to delete user with ID: $id"], 500);
+            return response()->json(['msg' => "Failed to delete user with ID: $id"], 500)->send();
         }
+    }
+
+    public function test($id)
+    {
+
+        // ใช้งาน UserService ในการดึงข้อมูลผู้ใช้
+        $user = $this->userService->getUserById($id);
+        return response()->json($user,200)->send();
     }
 }
