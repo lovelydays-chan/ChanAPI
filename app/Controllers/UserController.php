@@ -2,7 +2,6 @@
 
 namespace App\Controllers;
 
-use App\Models\User;
 use App\Service\UserService;
 use App\Repository\UserRepository;
 use App\Requests\UserStoreRequest;
@@ -18,7 +17,6 @@ class UserController
     public function __construct(UserRepository $userRepository, UserService $userService)
     {
         // เชื่อมต่อกับ UserModel
-        $this->model = new User();
         $this->userRepository = $userRepository;
         $this->userService = $userService;
     }
@@ -29,8 +27,7 @@ class UserController
         $perPage = $_GET['per_page'] ?? 10;
         $currentPage = $_GET['page'] ?? 1;
 
-        $result = $this->model->paginate($perPage, $currentPage);
-
+        $result = $this->userRepository->paginate($perPage, $currentPage);
         $pagination = [
             'total' => $result['pagination']['total'],
             'current_page' => $result['pagination']['current_page'],
@@ -43,9 +40,9 @@ class UserController
 
     public function show($id)
     {
-        $user = $this->model->find($id);
+        $user = $this->userRepository->find($id);
 
-        if ($user) {
+        if ($user->count() > 0) {
             return response()->json(['msg' => 'User found', 'status' => true, 'data' => $user], 200)->send();
         } else {
             return response()->json(['msg' => 'User not found', 'status' => false], 404)->send();
@@ -61,7 +58,7 @@ class UserController
             $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);
         }
 
-        $user = $this->model->create($data); // สร้างผู้ใช้และรับข้อมูลผู้ใช้ที่เพิ่งสร้าง
+        $user = $this->userRepository->create($data); // สร้างผู้ใช้และรับข้อมูลผู้ใช้ที่เพิ่งสร้าง
 
         if ($user) {
             return response()->json([
@@ -77,7 +74,7 @@ class UserController
     {
         $data = $request->all();
 
-        if ($this->model->update($id, $data)) {
+        if ($this->userRepository->update($id, $data)) {
             return response()->json(['msg' => "User with ID: $id updated successfully"],200)->send();
         } else {
             return response()->json(['msg' => "Failed to update user with ID: $id"], 500)->send();
@@ -86,7 +83,7 @@ class UserController
 
     public function delete($id)
     {
-        if ($this->model->delete($id)) {
+        if ($this->userRepository->delete($id)) {
             return response()->json(['msg' => "User with ID: $id deleted successfully"],200)->send();
         } else {
             return response()->json(['msg' => "Failed to delete user with ID: $id"], 500)->send();

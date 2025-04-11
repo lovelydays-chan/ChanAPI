@@ -8,7 +8,7 @@ use App\Core\QueryBuilder;
 abstract class Model
 {
     protected $table;
-    protected $connection = 'mysql'; // ค่าเริ่มต้นของการเชื่อมต่อฐานข้อมูล
+    protected $connection = 'mysql';
     protected $queryBuilder;
 
     public function __construct($connection = null)
@@ -16,44 +16,46 @@ abstract class Model
         if (php_sapi_name() === 'cli' && getenv('APP_ENV') === 'testing') {
             $this->connection = 'sqlite';
         } elseif ($connection) {
-            // ใช้ connection ที่ระบุไว้
             $this->connection = $connection;
         }
-
-        // สร้าง QueryBuilder สำหรับโมเดลนี้
-        $pdo = Database::getInstance($this->connection);
-        $this->queryBuilder = new QueryBuilder($pdo, $this->table);
     }
-
-    public function all()
+    protected function getQueryBuilder()
     {
-        return $this->queryBuilder->select()->get();
+        if (!$this->queryBuilder) {
+            $pdo = Database::getInstance($this->connection);
+            $this->queryBuilder = new QueryBuilder($pdo, $this->table);
+        }
+        return $this->queryBuilder;
+    }
+    public function all(): Collection
+    {
+        return $this->getQueryBuilder()->select()->get();
     }
 
     public function find($id)
     {
-        return $this->queryBuilder->select()->where('id', '=', $id)->first();
+        return $this->getQueryBuilder()->select()->where('id', '=', $id)->first();
     }
 
-    public function create($data)
+    public function create(array $data)
     {
-        $id = $this->queryBuilder->insert($data); // สร้างข้อมูลและรับ ID ที่เพิ่งสร้าง
+        $id = $this->getQueryBuilder()->insert($data); // สร้างข้อมูลและรับ ID ที่เพิ่งสร้าง
         return $this->find($id); // ดึงข้อมูลผู้ใช้ที่เพิ่งสร้างและคืนค่า
     }
 
     public function update($id, $data)
     {
-        return $this->queryBuilder->where('id', '=', $id)->update($data);
+        return $this->getQueryBuilder()->where('id', '=', $id)->update($data);
     }
 
     public function delete($id)
     {
-        return $this->queryBuilder->where('id', '=', $id)->delete();
+        return $this->getQueryBuilder()->where('id', '=', $id)->delete();
     }
 
     public function where($column, $operator = '=', $value = null)
     {
-        return $this->queryBuilder->where($column, $operator, $value);
+        return $this->getQueryBuilder()->where($column, $operator, $value);
     }
 
     public function paginate($perPage = 10, $currentPage = 1, $filters = [], $orderBy = null)
@@ -61,7 +63,7 @@ abstract class Model
         $offset = ($currentPage - 1) * $perPage;
 
         // เพิ่มเงื่อนไขการกรองข้อมูล (where)
-        $query = $this->queryBuilder->select();
+        $query = $this->getQueryBuilder()->select();
         if (!empty($filters)) {
             foreach ($filters as $column => $value) {
                 $query = $query->where($column, '=', $value);
@@ -80,7 +82,7 @@ abstract class Model
             ->get();
 
         // นับจำนวนรายการทั้งหมด (รวมเงื่อนไข where)
-        $totalQuery = $this->queryBuilder->select('COUNT(*) as total');
+        $totalQuery = $this->getQueryBuilder()->select('COUNT(*) as total');
         if (!empty($filters)) {
             foreach ($filters as $column => $value) {
                 $totalQuery = $totalQuery->where($column, '=', $value);
@@ -97,5 +99,26 @@ abstract class Model
                 'last_page' => ceil($total / $perPage),
             ],
         ];
+    }
+    public function rawQuery($sql, $params = [])
+    {
+        return $this->getQueryBuilder()->rawQuery($sql, $params);
+    }
+    public function rawExec($sql, $params = [])
+    {
+        return $this->getQueryBuilder()->rawExec($sql, $params);
+    }
+    public function rawQueryAsModel($sql, $params = [])
+    {
+        return $this->getQueryBuilder()->rawQueryAsModel($sql, $params, static::class);
+    }
+    public function raw(string $sql, array $params = []): Collection
+    {
+        return $this->queryBuilder->rawQueryAsModel($sql, $params, static::class);
+    }
+
+    public function getPdo()
+    {
+        return $this->getQueryBuilder()->getPdo();
     }
 }

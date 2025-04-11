@@ -1,32 +1,18 @@
 <?php
 namespace App\Repository;
 
-use PDO;
-use App\Core\Database;
+use App\Models\User;
+use App\Core\BaseRepository;
 
-class UserRepository
+class UserRepository extends BaseRepository
 {
-    protected $pdo;
-
-    public function __construct()
+    public function model()
     {
-
-        $this->pdo = Database::getInstance();
+        return new User();
     }
 
-    // ดึงข้อมูลผู้ใช้ทั้งหมด
-    public function getAllUsers()
+    public function findByEmail($email)
     {
-        $stmt = $this->pdo->query("SELECT * FROM users");
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
-    }
-
-    // ดึงข้อมูลผู้ใช้จาก ID
-    public function getUserById(int $id)
-    {
-
-        $stmt = $this->pdo->prepare("SELECT * FROM users WHERE id = :id");
-        $stmt->execute(['id' => $id]);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        return $this->model->where('email', '=', $email)->first();
     }
 }

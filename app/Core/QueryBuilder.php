@@ -3,6 +3,7 @@
 namespace App\Core;
 
 use PDO;
+use App\Core\Collection;
 
 class QueryBuilder
 {
@@ -53,7 +54,8 @@ class QueryBuilder
         $this->query .= $this->whereClause;
         $stmt = $this->pdo->prepare($this->query);
         $stmt->execute($this->bindings);
-        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $result =  $stmt->fetchAll(PDO::FETCH_ASSOC);
+        return new Collection( $result);
     }
 
     public function first()
@@ -61,7 +63,12 @@ class QueryBuilder
         $this->query .= $this->whereClause . " LIMIT 1";
         $stmt = $this->pdo->prepare($this->query);
         $stmt->execute($this->bindings);
-        return $stmt->fetch(PDO::FETCH_ASSOC);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($result) {
+            return new Collection($result);
+        }
+
+        return new Collection([]);
     }
 
     public function insert(array $data)
@@ -124,5 +131,42 @@ class QueryBuilder
     {
         $this->query .= " ORDER BY {$column} " . strtoupper($direction);
         return $this;
+    }
+    public function getPdo()
+    {
+        return $this->pdo;
+    }
+    public function rawQuery(string $sql, array $params = [])
+    {
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        return $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function rawExec(string $sql, array $params = [])
+    {
+        $stmt = $this->pdo->prepare($sql);
+        return $stmt->execute($params);
+    }
+    public function rawQueryAsModel(string $sql, array $params = [], ?string $modelClass = null)
+    {
+        if (!$modelClass) {
+            throw new \InvalidArgumentException('Model class is required for rawQueryAsModel().');
+        }
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($params);
+        $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
+
+        $models = [];
+        foreach ($results as $row) {
+            $model = new $modelClass();
+            foreach ($row as $key => $value) {
+                $model->$key = $value;
+            }
+            $models[] = $model;
+        }
+
+        return new Collection($models);
     }
 }

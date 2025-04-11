@@ -157,7 +157,7 @@ class App
             foreach ($this->routes as $route) {
                 if ($this->matchesRoute($route)) {
                     $matches = $this->getRouteMatches($route['uri']);
-                    $response = $this->executeRoute($route, $matches, $data);
+                    $this->executeRoute($route, $matches, $data);
                     return $this->response->prepareTestResponse();
                 }
             }

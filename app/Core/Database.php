@@ -3,7 +3,6 @@
 namespace App\Core;
 
 use PDO;
-use Exception;
 use PDOException;
 
 class Database
@@ -56,7 +55,7 @@ class Database
         // ตรวจสอบว่ามีการเชื่อมต่ออยู่แล้วหรือไม่
         if (!isset(self::$instances[$connection])) {
             if (!isset($config['connections'][$connection])) {
-                throw new Exception("Database connection [{$connection}] not configured.");
+                throw new PDOException("Database connection [{$connection}] not configured.");
             }
 
             // สร้าง Database instance และเก็บไว้ใน instances
