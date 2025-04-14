@@ -1,5 +1,4 @@
 <?php
-
 namespace App\Core;
 
 use PDO;
@@ -16,8 +15,10 @@ class QueryBuilder
     private $orders = [];
     private $limitValue;
     private $offsetValue;
+    private $with = [];
+    private $orWheres = []; // สำหรับ whereOr
 
-    public function __construct(PDO $pdo, string $table,  $modelClass = null)
+    public function __construct(PDO $pdo, string $table, $modelClass = null)
     {
         $this->pdo = $pdo;
         $this->table = $table;
@@ -30,6 +31,7 @@ class QueryBuilder
         return $this;
     }
 
+    // where(), whereIn(), whereOr() แบบ fluent chainable
     public function where($column, $operator = '=', $value = null)
     {
         if (is_array($column)) {
@@ -40,6 +42,31 @@ class QueryBuilder
             }
         } else {
             $this->wheres[] = [$column, $operator, $value];
+            $this->bindings[] = $value;
+        }
+        return $this;
+    }
+
+    // whereIn() - สำหรับการ query with IN condition
+    public function whereIn($column, array $values)
+    {
+        $placeholders = implode(', ', array_fill(0, count($values), '?'));
+        $this->wheres[] = "{$column} IN ({$placeholders})";
+        $this->bindings = array_merge($this->bindings, $values);
+        return $this;
+    }
+
+    // whereOr() - สำหรับการ query OR condition
+    public function whereOr($column, $operator = '=', $value = null)
+    {
+        if (is_array($column)) {
+            foreach ($column as $condition) {
+                [$col, $op, $val] = $condition;
+                $this->orWheres[] = [$col, $op, $val];
+                $this->bindings[] = $val;
+            }
+        } else {
+            $this->orWheres[] = [$column, $operator, $value];
             $this->bindings[] = $value;
         }
         return $this;
@@ -63,14 +90,29 @@ class QueryBuilder
         return $this;
     }
 
+    public function with(array $relations)
+    {
+        $this->with = $relations;
+        return $this;
+    }
+
     public function get()
     {
         $stmt = $this->prepareStatement();
         $stmt->execute($this->bindings);
         $results = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        // สร้าง Collection ของ Model ที่เชื่อมกับ Result
-        return new Collection($this->mapToModels($results));
+        $this->resetState();
+
+        $models = $this->mapToModels($results);
+
+        if ($this->with) {
+            foreach ($models as $model) {
+                $model->loadRelations($this->with);
+            }
+        }
+
+        return new Collection($models);
     }
 
     public function first()
@@ -79,7 +121,18 @@ class QueryBuilder
         $stmt = $this->prepareStatement();
         $stmt->execute($this->bindings);
         $result = $stmt->fetch(PDO::FETCH_ASSOC);
-        return $result ? $this->mapToModel($result) : null;
+
+        $this->resetState();
+
+        if (!$result) return null;
+
+        $model = $this->mapToModel($result);
+
+        if ($this->with) {
+            $model->loadRelations($this->with);
+        }
+
+        return $model;
     }
 
     public function insert(array $data)
@@ -90,6 +143,9 @@ class QueryBuilder
 
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute(array_values($data));
+
+        $this->resetState();
+
         return $this->pdo->lastInsertId();
     }
 
@@ -97,15 +153,34 @@ class QueryBuilder
     {
         $set = implode(', ', array_map(fn($key) => "{$key} = ?", array_keys($data)));
         $sql = "UPDATE {$this->table} SET {$set}" . $this->buildWhereClause();
+
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute(array_merge(array_values($data), $this->bindings));
+        $result = $stmt->execute(array_merge(array_values($data), $this->bindings));
+
+        $this->resetState();
+
+        return $result;
     }
 
     public function delete()
     {
         $sql = "DELETE FROM {$this->table}" . $this->buildWhereClause();
+
         $stmt = $this->pdo->prepare($sql);
-        return $stmt->execute($this->bindings);
+        $result = $stmt->execute($this->bindings);
+
+        $this->resetState();
+
+        return $result;
+    }
+
+    public function save($modelInstance)
+    {
+        if (isset($modelInstance->id)) {
+            return $this->update($modelInstance->getAttributes());
+        } else {
+            return $this->insert($modelInstance->getAttributes());
+        }
     }
 
     public function rawQuery(string $sql, array $params = [])
@@ -136,17 +211,22 @@ class QueryBuilder
     private function prepareStatement()
     {
         $sql = "SELECT {$this->selects} FROM {$this->table}"
-            . $this->buildWhereClause()
-            . $this->buildOrderClause()
-            . $this->buildLimitOffset();
+             . $this->buildWhereClause()
+             . $this->buildOrderClause()
+             . $this->buildLimitOffset();
 
         return $this->pdo->prepare($sql);
     }
 
     private function buildWhereClause()
     {
-        if (empty($this->wheres)) return '';
+        if (empty($this->wheres) && empty($this->orWheres)) return '';
+
         $clauses = array_map(fn($w) => "{$w[0]} {$w[1]} ?", $this->wheres);
+        $orClauses = array_map(fn($w) => "{$w[0]} {$w[1]} ?", $this->orWheres);
+
+        $clauses = array_merge($clauses, $orClauses);
+
         return ' WHERE ' . implode(' AND ', $clauses);
     }
 
@@ -185,6 +265,39 @@ class QueryBuilder
             throw new \Exception("Class {$modelClass} must extend App\Core\Model");
         }
         return $model->fill($row);
+    }
+
+    public function count(): int
+    {
+        $originalSelects = $this->selects;
+        $sql = "SELECT COUNT(*) as total FROM {$this->table}" . $this->buildWhereClause();
+
+        $stmt = $this->pdo->prepare($sql);
+        $stmt->execute($this->bindings);
+        $result = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        $this->selects = $originalSelects;
+        $this->resetState();
+
+        return (int) ($result['total'] ?? 0);
+    }
+
+    private function resetState(): void
+    {
+        $this->selects = '*';
+        $this->wheres = [];
+        $this->orWheres = [];
+        $this->bindings = [];
+        $this->orders = [];
+        $this->limitValue = null;
+        $this->offsetValue = null;
+        $this->with = [];
+    }
+
+    public function clear(): self
+    {
+        $this->resetState();
+        return $this;
     }
 
     public function getTable()

@@ -7,7 +7,7 @@ use App\Core\Model;
 class User extends Model
 {
     protected $table = 'users'; // ชื่อตารางในฐานข้อมูล
-    protected bool $allowDynamic = true;
+    protected bool $allowDynamic = false;
     protected array $fillable = [
         'id',
         'name',
@@ -17,6 +17,10 @@ class User extends Model
         'remember_token',
         'created_at',
         'updated_at',
+    ];
+    protected array $hidden = [
+        'password',
+        'remember_token',
     ];
 
 }

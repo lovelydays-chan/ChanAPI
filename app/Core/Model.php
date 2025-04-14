@@ -4,25 +4,30 @@ namespace App\Core;
 
 use App\Core\QueryBuilder;
 use App\Core\DatabaseManager;
+use App\Core\Collection;
+use Exception;
 
 abstract class Model
 {
     protected $table;
     protected $connection = 'mysql';
-    protected $queryBuilder;
     protected $primaryKey = 'id';
     protected bool $allowDynamic = false;
     protected array $attributes = [];
     protected array $fillable = [];
     protected array $hidden = [];
+    protected array $with = [];
+    protected $queryBuilder;
 
-    public function __construct($connection = null)
+    public function __construct($attributes = [], $connection = null)
     {
         if (php_sapi_name() === 'cli' && getenv('APP_ENV') === 'testing') {
             $this->connection = 'sqlite';
         } elseif ($connection) {
             $this->connection = $connection;
         }
+
+        $this->fill($attributes);
     }
 
     protected function getQueryBuilder()
@@ -33,102 +38,110 @@ abstract class Model
         }
         return $this->queryBuilder;
     }
+
     public function toArray()
     {
         $data = $this->attributes;
-
         foreach ($this->hidden as $field) {
             unset($data[$field]);
         }
 
+        if ($this->with) {
+            $this->loadRelations([$this]);
+        }
+
         return $data;
     }
+
     public function fill(array $attributes)
     {
         foreach ($attributes as $key => $value) {
-            // ตรวจสอบว่า key ใน fillable หรือ dynamic property
             if ($this->allowDynamic || in_array($key, $this->fillable, true)) {
                 $this->attributes[$key] = $value;
             }
         }
         return $this;
     }
-    // ฟังก์ชัน __get() ใช้เพื่อดึงค่า
+
     public function __get($name)
     {
         return $this->attributes[$name] ?? null;
     }
 
-    // ฟังก์ชัน __set() ใช้เพื่อกำหนดค่า
     public function __set($name, $value)
     {
         $this->attributes[$name] = $value;
     }
-    // ฟังก์ชัน getAttributes() เพื่อดึงข้อมูลทั้งหมด
+
     public function getAttributes()
     {
         return $this->attributes;
     }
-    public function all()
+
+    public static function query()
     {
-        return $this->getQueryBuilder()->select()->get();
+        return (new static)->getQueryBuilder();
     }
 
-    public function find($id)
+    public static function all()
     {
-        return $this->getQueryBuilder()->select()->where('id', '=', $id)->first();
+        return static::query()->select()->get();
     }
 
-    public function create(array $data)
+    public static function find($id)
     {
-        $id = $this->getQueryBuilder()->insert($data);
-        return $this->find($id); // ค้นหาข้อมูลหลังจากสร้าง
+        return static::query()->select()->where((new static)->primaryKey, '=', $id)->first();
     }
 
-    public function update($id, array $data)
+    public static function findOrFail($id)
     {
-        return $this->getQueryBuilder()->where('id', '=', $id)->update($data);
+        $model = static::find($id);
+        if (!$model) {
+            throw new Exception(static::class . " not found.");
+        }
+        return $model;
     }
 
-    public function delete($id)
+    public static function create(array $data)
     {
-        return $this->getQueryBuilder()->where('id', '=', $id)->delete();
+        $instance = new static();
+        $id = $instance->getQueryBuilder()->insert($data);
+        return static::find($id);
     }
 
-    public function where($column, $operator = '=', $value = null)
+    public static function update($id, array $data)
     {
-        return $this->getQueryBuilder()->where($column, $operator, $value);
+        return static::query()->where((new static)->primaryKey, '=', $id)->update($data);
     }
 
-    public function paginate($perPage = 10, $currentPage = 1, $filters = [], $orderBy = null)
+    public static function delete($id)
     {
-        $offset = ($currentPage - 1) * $perPage;
+        return static::query()->where((new static)->primaryKey, '=', $id)->delete();
+    }
 
-        $query = $this->getQueryBuilder()->select();
-        // เพิ่มเงื่อนไข where
+    public static function where($column, $operator = '=', $value = null)
+    {
+        return static::query()->where($column, $operator, $value);
+    }
+
+    public static function paginate($perPage = 10, $currentPage = 1, $filters = [], $orderBy = null)
+    {
+        $query = static::query()->select();
+
         if (!empty($filters)) {
             foreach ($filters as $column => $value) {
                 $query->where($column, '=', $value);
             }
         }
 
-        // เพิ่มการจัดเรียง (orderBy)
         if ($orderBy) {
             $query->orderBy($orderBy['column'], $orderBy['direction'] ?? 'asc');
         }
 
-        // ดึงข้อมูลหน้า
+        $total = $query->count();
         $data = $query->limit($perPage)
-            ->offset($offset)
-            ->get();
-
-        // คำนวณจำนวนข้อมูลทั้งหมด
-        $totalQuery = $this->getQueryBuilder()->select('COUNT(*) as total');
-        foreach ($filters as $column => $value) {
-            $totalQuery->where($column, '=', $value);
-        }
-
-        $total = $totalQuery->get()[0]->total ?? 0;
+                     ->offset(($currentPage - 1) * $perPage)
+                     ->get();
 
         return [
             'data' => $data->toArray(),
@@ -141,23 +154,82 @@ abstract class Model
         ];
     }
 
-    public function rawQuery($sql, $params = [])
+    public static function rawQuery($sql, $params = [])
     {
-        return $this->getQueryBuilder()->rawQuery($sql, $params);
+        return static::query()->rawQuery($sql, $params);
     }
 
-    public function rawExec($sql, $params = [])
+    public static function rawExec($sql, $params = [])
     {
-        return $this->getQueryBuilder()->rawExec($sql, $params);
+        return static::query()->rawExec($sql, $params);
     }
 
-    public function rawQueryAsModel($sql, $params = [])
+    public static function rawQueryAsModel($sql, $params = [])
     {
-        return $this->getQueryBuilder()->rawQueryAsModel($sql, $params, static::class);
+        return static::query()->rawQueryAsModel($sql, $params, static::class);
     }
 
-    public function getPdo()
+    public static function getPdo()
     {
-        return $this->getQueryBuilder()->getPdo();
+        return static::query()->getPdo();
+    }
+
+    public function with(array|string $relations)
+    {
+        $this->with = is_array($relations) ? $relations : [$relations];
+        return $this;
+    }
+
+    public function loadRelations(array $models)
+    {
+        foreach ($this->with as $relation) {
+            if (method_exists($this, $relation)) {
+                foreach ($models as $model) {
+                    $model->{$relation} = $model->{$relation}();
+                }
+            }
+        }
+        return $models;
+    }
+
+    public function load(string $relation)
+    {
+        if (method_exists($this, $relation)) {
+            $this->{$relation} = $this->{$relation}();
+        }
+    }
+
+    // ความสัมพันธ์แบบ hasOne
+    public function hasOne($related, $foreignKey, $localKey = null)
+    {
+        $localKey = $localKey ?? $this->primaryKey;
+        return (new $related)->where($foreignKey, '=', $this->{$localKey})->first();
+    }
+
+    // ความสัมพันธ์แบบ hasMany
+    public function hasMany($related, $foreignKey, $localKey = null)
+    {
+        $localKey = $localKey ?? $this->primaryKey;
+        return (new $related)->where($foreignKey, '=', $this->{$localKey})->get();
+    }
+
+    // ความสัมพันธ์แบบ belongsTo
+    public function belongsTo($related, $foreignKey, $ownerKey = 'id')
+    {
+        return (new $related)->where($ownerKey, '=', $this->{$foreignKey})->first();
+    }
+
+    // ความสัมพันธ์แบบ belongsToMany
+    public function belongsToMany($related, $pivotTable, $foreignPivotKey, $relatedPivotKey, $localKey = null, $relatedKey = 'id')
+    {
+        $localKey = $localKey ?? $this->primaryKey;
+
+        $pivotResults = static::getPdo()->prepare("SELECT {$relatedPivotKey} FROM {$pivotTable} WHERE {$foreignPivotKey} = ?");
+        $pivotResults->execute([$this->{$localKey}]);
+        $ids = array_column($pivotResults->fetchAll(\PDO::FETCH_ASSOC), $relatedPivotKey);
+
+        if (empty($ids)) return new Collection([]);
+
+        return (new $related)->whereIn($relatedKey, $ids)->get();
     }
 }
