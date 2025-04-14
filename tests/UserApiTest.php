@@ -1,8 +1,8 @@
 <?php
 
-use App\Core\Database;
 use PHPUnit\Framework\TestCase;
 use App\Controllers\UserController;
+use App\Core\DatabaseManager;
 
 class UserApiTest extends TestCase
 {
@@ -28,7 +28,8 @@ class UserApiTest extends TestCase
         $this->app->addRoute('DELETE', '/api/users/{id}', UserController::class, 'delete');
 
         // สร้างฐานข้อมูลในหน่วยความจำ (SQLite)
-        $pdo = Database::getInstance('sqlite');
+        $dbManager = $this->app->get(DatabaseManager::class);
+        $pdo = $dbManager->getConnection('sqlite');
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +52,7 @@ class UserApiTest extends TestCase
     protected function tearDown(): void
     {
         // ลบตารางหลังจากทดสอบ
-        $pdo = Database::getInstance('sqlite');
+        $pdo = $this->app->get(DatabaseManager::class)->getConnection('sqlite');
         $pdo->exec("DROP TABLE IF EXISTS users");
 
         parent::tearDown();
@@ -85,7 +86,6 @@ class UserApiTest extends TestCase
         ];
 
         $response = $this->app->test('POST', '/api/users', $postData);
-
         $this->assertEquals(201, $response['status']);
         $this->assertArrayHasKey('data', $response['body']);
         $this->assertEquals('Test User', $response['body']['data']['name']);

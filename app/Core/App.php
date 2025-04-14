@@ -413,7 +413,7 @@ class App
     /**
      * Resolve a class from the container or through autowiring
      */
-    protected function resolveClass(string $class, array $constructorArgs = [])
+    public function resolveClass(string $class, array $constructorArgs = [])
     {
         if (isset($this->singletons[$class])) {
             if (is_object($this->singletons[$class])) {
@@ -454,6 +454,15 @@ class App
         }
 
         return $reflection->newInstanceArgs($parameters);
+    }
+    public function get($abstract)
+    {
+        return $this->resolveClass($abstract);
+    }
+
+    public function make($abstract, array $parameters = [])
+    {
+        return $this->resolveClass($abstract, $parameters);
     }
 
     /**

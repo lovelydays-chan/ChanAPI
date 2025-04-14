@@ -215,4 +215,12 @@ class Collection implements ArrayAccess, Countable, IteratorAggregate, JsonSeria
     {
         return new \ArrayIterator($this->items);
     }
+    public function toArray() {
+        return array_map(function ($item) {
+            if (method_exists($item, 'toArray')) {
+                return $item->toArray();
+            }
+            return (array) $item;
+        }, $this->items);
+    }
 }

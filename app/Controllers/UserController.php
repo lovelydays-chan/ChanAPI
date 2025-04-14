@@ -41,9 +41,8 @@ class UserController
     public function show($id)
     {
         $user = $this->userRepository->find($id);
-
-        if ($user->count() > 0) {
-            return response()->json(['msg' => 'User found', 'status' => true, 'data' => $user], 200)->send();
+        if ($user) {
+            return response()->json(['msg' => 'User found', 'status' => true, 'data' => $user->toArray()], 200)->send();
         } else {
             return response()->json(['msg' => 'User not found', 'status' => false], 404)->send();
         }
@@ -63,7 +62,7 @@ class UserController
         if ($user) {
             return response()->json([
                 'msg' => 'User created successfully',
-                'data' => $user, // ส่งข้อมูลผู้ใช้กลับไป
+                'data' => $user->toArray(), // ส่งข้อมูลผู้ใช้กลับไป
             ], 201)->send();
         } else {
             return response()->json(['msg' => 'Failed to create user'], 500)->send();

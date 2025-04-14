@@ -1,7 +1,8 @@
 <?php
 
-use Dotenv\Dotenv;
 use App\Core\App;
+use Dotenv\Dotenv;
+
 
 // โหลดไฟล์ .env
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
@@ -10,7 +11,7 @@ $dotenv->load();
 // เริ่มต้นแอปพลิเคชัน
 $app = new App();
 
-require_once __DIR__ . '/../app/Providers/service.php';
+require_once __DIR__ . '/../app/Providers/AppServiceProvider.php';
 
 // ตรวจสอบว่ากำลังใช้งานในโหมดทดสอบหรือไม่
 if (getenv('APP_ENV') === 'testing') {
