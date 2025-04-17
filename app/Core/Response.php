@@ -107,5 +107,12 @@ class Response
     {
         return $this->validationErrors;
     }
-
+    public function withCors(array $options = []): self
+    {
+        $this->headers['Access-Control-Allow-Origin'] = $options['origin'] ?? '*';
+        $this->headers['Access-Control-Allow-Methods'] = $options['methods'] ?? 'GET, POST, PUT, DELETE, OPTIONS';
+        $this->headers['Access-Control-Allow-Headers'] = $options['headers'] ?? 'Content-Type, Authorization';
+        $this->headers['Access-Control-Allow-Credentials'] = isset($options['credentials']) && $options['credentials'] ? 'true' : 'false';
+        return $this;
+    }
 }
