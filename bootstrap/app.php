@@ -3,7 +3,6 @@
 use App\Core\App;
 use Dotenv\Dotenv;
 
-
 // โหลดไฟล์ .env
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();
@@ -11,16 +10,25 @@ $dotenv->load();
 // เริ่มต้นแอปพลิเคชัน
 $app = new App();
 
-require_once __DIR__ . '/../app/Providers/AppServiceProvider.php';
+$config = require __DIR__ . '/../config/app.php';
 
-// ตรวจสอบว่ากำลังใช้งานในโหมดทดสอบหรือไม่
+// ลงทะเบียน Providers (แบบ Singleton) และ บูต Providers
+foreach ($config['providers'] as $alias => $providerClass) {
+    // ลงทะเบียน Provider
+    $app->singleton($alias, function () use ($app, $providerClass) {
+        return new $providerClass($app);
+    });
+
+    // บูต Provider (ถ้ามีเมธอด boot)
+    $provider = $app->make($alias);
+    if (method_exists($provider, 'boot')) {
+        $provider->boot($app);
+    }
+}
+
+// โหมดทดสอบ
 if (getenv('APP_ENV') === 'testing') {
-    // ถ้าเป็นโหมดทดสอบ ก็ไม่ต้องให้ header หรือ response จริง
     $app->getResponse()->asTest();
 }
 
-// รวมเส้นทาง API
-require_once __DIR__ . '/../app/Routes/api.php';
-
-// ส่งคืนแอปพลิเคชัน
 return $app;

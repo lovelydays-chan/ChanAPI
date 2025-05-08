@@ -9,16 +9,19 @@ if (!function_exists('app')) {
     {
         static $app;
 
-        // โหลดหรือเก็บ App instance ไว้ครั้งเดียว
+        // ตรวจสอบว่ามี instance ของ App อยู่แล้วหรือไม่
         if (!$app) {
-            $app = require __DIR__ . '/../../bootstrap/app.php'; // หรือเส้นทางไปยัง instance ของ App
+            // ใช้ require_once เพื่อป้องกันการโหลดซ้ำ
+            $app = require_once __DIR__ . '/../../bootstrap/app.php';
         }
 
+        // หากไม่มีการระบุ $abstract ให้คืนค่า instance ของ App
         if ($abstract === null) {
             return $app;
         }
 
-        return $app->resolveClass($abstract); // หรือ $app->make($abstract) ถ้ามีเมธอด make()
+        // ดึง service จาก container
+        return $app->make($abstract);
     }
 }
 

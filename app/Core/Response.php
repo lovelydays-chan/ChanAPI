@@ -16,6 +16,12 @@ class Response
         $this->statusCode = $statusCode;
         $this->headers['Content-Type'] = 'application/json';
         $this->content = is_string($data) ? $data : json_encode($data);
+
+        // ตรวจสอบข้อผิดพลาดในการแปลง JSON
+        if (json_last_error() !== JSON_ERROR_NONE) {
+            $this->content = json_encode(['error' => 'Invalid JSON data']);
+        }
+
         return $this;
     }
 
@@ -67,15 +73,24 @@ class Response
     public function prepareTestResponse(): array
     {
         $body = $this->content;
-        if ($this->headers['Content-Type'] === 'application/json') {
+
+        // ตรวจสอบ Content-Type และแปลง JSON
+        if (isset($this->headers['Content-Type']) && $this->headers['Content-Type'] === 'application/json') {
             $body = json_decode($this->content, true);
+            if (json_last_error() !== JSON_ERROR_NONE || $body === null) {
+                $body = ['error' => 'Invalid JSON response'];
+            }
+        }
+
+        // กรณี content เป็น string ว่าง
+        if (empty($body)) {
+            $body = ['error' => 'Empty response body'];
         }
 
         return [
             'status' => $this->statusCode,
             'headers' => $this->headers,
             'body' => $body,
-            'errors' => $this->validationErrors
         ];
     }
 
@@ -114,5 +129,14 @@ class Response
         $this->headers['Access-Control-Allow-Headers'] = $options['headers'] ?? 'Content-Type, Authorization';
         $this->headers['Access-Control-Allow-Credentials'] = isset($options['credentials']) && $options['credentials'] ? 'true' : 'false';
         return $this;
+    }
+    public function getStatusCode(): int
+    {
+        return $this->statusCode;
+    }
+
+    public function setStatusCode(int $code): void
+    {
+        $this->statusCode = $code;
     }
 }

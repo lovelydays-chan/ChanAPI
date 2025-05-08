@@ -51,7 +51,6 @@ class UserController
     public function store(UserStoreRequest $request)
     {
         $data = $request->all();
-
         // เข้ารหัสรหัสผ่านก่อนบันทึก
         if (isset($data['password'])) {
             $data['password'] = password_hash($data['password'], PASSWORD_BCRYPT);

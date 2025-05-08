@@ -3,7 +3,6 @@
 namespace App\Core;
 
 use App\Core\QueryBuilder;
-use App\Core\DatabaseManager;
 use App\Core\Collection;
 use Exception;
 
@@ -33,7 +32,7 @@ abstract class Model
     protected function getQueryBuilder()
     {
         if (!$this->queryBuilder) {
-            $pdo = app(DatabaseManager::class)->getConnection($this->connection);
+            $pdo = app('db')->getConnection($this->connection);
             $this->queryBuilder = new QueryBuilder($pdo, $this->table, static::class);
         }
         return $this->queryBuilder;

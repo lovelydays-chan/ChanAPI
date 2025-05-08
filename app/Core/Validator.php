@@ -57,7 +57,8 @@ class Validator
 
         if (!empty(self::$errors)) {
             if (response()->isTesting()) {
-                throw new ValidationException(self::$errors);
+                $errors = response()->validationErrors(self::$errors)->send();
+                throw new \Exception(json_encode($errors));
             }
             response()->validationErrors(self::$errors)->send();
             exit; // หยุดการทำงานต่อเมื่อมี error

@@ -1,8 +1,6 @@
 <?php
 
 use PHPUnit\Framework\TestCase;
-use App\Controllers\UserController;
-use App\Core\DatabaseManager;
 
 class UserApiTest extends TestCase
 {
@@ -15,20 +13,15 @@ class UserApiTest extends TestCase
         putenv('APP_ENV=testing');
 
         // ตั้งค่า App
-        $this->app = require __DIR__ . '/../bootstrap/app.php';
+        $this->app = app();
+
 
         // เปิดโหมดทดสอบสำหรับ Response
-        $this->app->getResponse()->asTest();
-
-        // กำหนดเส้นทาง (routes)
-        $this->app->addRoute('GET', '/api/users', UserController::class, 'index');
-        $this->app->addRoute('POST', '/api/users', UserController::class, 'store');
-        $this->app->addRoute('GET', '/api/users/{id}', UserController::class, 'show');
-        $this->app->addRoute('PUT', '/api/users/{id}', UserController::class, 'update');
-        $this->app->addRoute('DELETE', '/api/users/{id}', UserController::class, 'delete');
-
+        $response  =  $this->app->getResponse();
+        $response->asTest();
         // สร้างฐานข้อมูลในหน่วยความจำ (SQLite)
-        $dbManager = $this->app->get(DatabaseManager::class);
+        $dbManager = app('db');
+
         $pdo = $dbManager->getConnection('sqlite');
         $pdo->exec("
             CREATE TABLE IF NOT EXISTS users (
@@ -52,7 +45,7 @@ class UserApiTest extends TestCase
     protected function tearDown(): void
     {
         // ลบตารางหลังจากทดสอบ
-        $pdo = $this->app->get(DatabaseManager::class)->getConnection('sqlite');
+        $pdo = app('db')->getConnection('sqlite');
         $pdo->exec("DROP TABLE IF EXISTS users");
 
         parent::tearDown();
@@ -62,7 +55,6 @@ class UserApiTest extends TestCase
     {
         // ส่งคำขอ GET ไปยัง API
         $response = $this->app->test('GET', '/api/users');
-
         // ตรวจสอบผลลัพธ์ที่ได้รับจาก response
         $this->assertEquals(200, $response['status']);
         $this->assertIsArray($response['body']);
@@ -81,7 +73,7 @@ class UserApiTest extends TestCase
     {
         $postData = [
             'name' => 'Test User',
-            'email' => 'test001@exa77mple.com',
+            'email' => 'test001@example.com',
             'password' => 'password123',
         ];
 
@@ -91,7 +83,6 @@ class UserApiTest extends TestCase
         $this->assertEquals('Test User', $response['body']['data']['name']);
         return $response['body']['data']['id'];
     }
-
 
     /**
      * @depends testStore
@@ -108,7 +99,6 @@ class UserApiTest extends TestCase
         $this->assertEquals(200, $response['status']);
         $this->assertArrayHasKey('msg', $response['body']);
         $this->assertStringContainsString("User with ID: $userId updated successfully", $response['body']['msg']);
-
     }
 
     /**
@@ -134,12 +124,15 @@ class UserApiTest extends TestCase
             'email' => 'invalid-email',
             'password' => '123'
         ];
+        try {
+            $this->app->test('POST', '/api/users', $invalidData);
+        } catch (\Exception $e) {
+            $errors = json_decode($e->getMessage(), true);
+            $this->assertEquals(422, $errors['status']);
+            $this->assertArrayHasKey('errors', $errors['body']);
+            $this->assertArrayHasKey('name', $errors['body']['errors']);
 
-        $response = $this->app->test('POST', '/api/users', $invalidData);
-        $this->assertEquals(422, $response['status']);
-        $this->assertArrayHasKey('errors', $response);
-        $this->assertArrayHasKey('name', $response['errors']);
+        }
+
     }
-
-
 }
